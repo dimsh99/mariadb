@@ -12,7 +12,6 @@ property :permanent, kind_of: [TrueClass, FalseClass], default: false
 
 action_class do
   include MariaDB::Connection::Helper
-
 end
 
 load_current_value do
@@ -20,15 +19,11 @@ load_current_value do
   socket = if node['mariadb']['client']['socket'] && host == 'localhost'
              node['mariadb']['client']['socket']
            end
-  conn_options = { username: user, password: password,
-                   port: port }.merge!(socket.nil? ? { host: host } : { socket: socket })
+  action_class.connect(host: host, port: port, username: user, password: password, socket: socket)
   begin
-    mysql_connection = Mysql2::Client.new(conn_options)
     variable_query = "SHOW VARIABLES LIKE '#{new_resource.variable_name}'"
-    variable_value = mysql_connection.query(variable_query)
-    current_value_does_not_exist! if variable_value.count == 0
-    slave_status.each do |row|
-      value = variable_value['Value']
+    action_class.query(host, user, variable_query) do |variable_value|
+      value variable_value['Value']
     end
   rescue Mysql2::Error => mysql_exception
     current_value_does_not_exist! if mysql_exception.message =~ /There is no master connection.*/
@@ -39,6 +34,6 @@ load_current_value do
 end
 
 action :set do
-    converge_if_changed :value do
-    end
+  converge_if_changed :value do
+  end
 end
